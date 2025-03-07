@@ -2,11 +2,12 @@ import sys
 import numpy as np
 import cv2
 from PyQt5 import QtWidgets
-from PyQt5.QtWidgets import QLabel, QGridLayout
+from PyQt5.QtWidgets import QLabel, QGridLayout, QVBoxLayout
 from PyQt5.QtGui import QImage, QPixmap
 from task2ui import Ui_MainWindow
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QLabel, QGridLayout, QSizePolicy
+import matplotlib.pyplot as plt
 
 class ImageProcessor(QtWidgets.QMainWindow):
     def __init__(self):
@@ -20,7 +21,7 @@ class ImageProcessor(QtWidgets.QMainWindow):
         self.ui.generateImageButton.clicked.connect(self.generate_random_image)
         self.ui.ApplyButton.clicked.connect(self.apply_bayer_filter)
         self.ui.InterpolateButton.clicked.connect(self.generate_interpolated_image)
-        self.ui.TransformButton.clicked.connect(self.display_hue_component)
+        self.ui.TransformButton.clicked.connect(self.transform_image)
 
     def generate_random_image(self):
         """ Generates a random RGB image where each pixel is its own square, perfectly filling the layout """
@@ -60,12 +61,7 @@ class ImageProcessor(QtWidgets.QMainWindow):
         for i in reversed(range(self.ui.randomMatrixLayout.count())):
             self.ui.randomMatrixLayout.itemAt(i).widget().setParent(None)
         self.ui.randomMatrixLayout.addLayout(grid_layout)
-
-
-
-    from PyQt5.QtWidgets import QLabel, QGridLayout, QSizePolicy
-
-
+  # Return QLabel instead of adding to layout here
 
     
     def apply_bayer_filter(self):
@@ -206,74 +202,66 @@ class ImageProcessor(QtWidgets.QMainWindow):
                 grid_layout.addWidget(label, i, j)
 
         self.ui.interpolatedImageLayout_3.addLayout(grid_layout)
+
+    def transform_image(self):
+        """Converts the image to HSV and displays each channel."""
+        hsv_image = cv2.cvtColor(self.matrix, cv2.COLOR_RGB2HSV)
+
+        # Extract channels
+        hue_channel = hsv_image[:, :, 0]  # Hue: [0, 179]
+        saturation_channel = hsv_image[:, :, 1]  # Saturation: [0, 255]
+        value_channel = hsv_image[:, :, 2]  # Value: [0, 255]
+        
+        # Use grid display for Hue
+        self.display_channel_as_grid(hue_channel, is_hue=True,layout=self.ui.hueLayout)
+        self.display_channel_as_grid(saturation_channel,layout=self.ui.saturationLayout)
+        self.display_channel_as_grid(value_channel,layout=self.ui.valueLayout)
+        self.display_channel_as_grid(hsv_image,layout=self.ui.valueLayout_4)
         
 
-
+    def display_channel_as_grid(self, channel, layout, is_hue=False):
+        """Displays the given channel as a grid of QLabel widgets."""
         
+        # Clear previous layout contents
+        while layout.count():
+            item = layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
 
-    def display_hue_component(self):
-        """ Extracts and displays the Hue component of the image in the hueLayout """
-        
-        # Convert RGB to HSV
-        hsv_image = cv2.cvtColor(self.Interpolated_image, cv2.COLOR_RGB2HSV)
-        
-        # Extract the Hue channel
-        hue_channel = hsv_image[:, :, 0]  # OpenCV stores Hue in the first channel
+        # Check if channel is 3D (RGB Image)
+        if len(channel.shape) == 3 and channel.shape[2] == 3:
+            rows, cols, _ = channel.shape
+        else:
+            rows, cols = channel.shape
 
-        # Normalize hue values to 0-255 for better visualization
-        hue_normalized = cv2.normalize(hue_channel, None, 0, 255, cv2.NORM_MINMAX)
+        # Create a new grid layout
+        grid_layout = QGridLayout()
+        grid_layout.setSpacing(0)  # Remove gaps
+        grid_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins
 
-        # Convert single-channel grayscale image to RGB format for Qt display
-        hue_colormap = cv2.applyColorMap(hue_normalized.astype(np.uint8), cv2.COLORMAP_JET)
+        for i in range(rows):
+            for j in range(cols):
+                if is_hue:
+                    # Convert Hue to RGB color representation
+                    hsv_colored = np.uint8([[[channel[i, j], 255, 255]]])  # Full saturation & value
+                    rgb_colored = cv2.cvtColor(hsv_colored, cv2.COLOR_HSV2RGB)[0][0]
+                    r, g, b = int(rgb_colored[0]), int(rgb_colored[1]), int(rgb_colored[2])
+                elif len(channel.shape) == 3:  # RGB case
+                    r, g, b = int(channel[i, j, 0]), int(channel[i, j, 1]), int(channel[i, j, 2])
+                else:
+                    # Grayscale case (Saturation & Value)
+                    r = g = b = int(channel[i, j])
 
-        # Display the Hue image
-        self.display_saturation_component()
-        self.display_value_component()
-        self.display_hsv_img()
-        self.display_image(hue_colormap, self.ui.hueLayout)
+                # QLabel for displaying color
+                label = QLabel()
+                label.setStyleSheet(f"background-color: rgb({r}, {g}, {b});")
+                label.setMinimumSize(10, 10)  # Adjust pixel size
+                label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
 
- 
-    def display_saturation_component(self):
-        """ Extracts and displays the Saturation component in the saturationLayout """
-        
-        # Convert to HSV
-        hsv_image = cv2.cvtColor(self.Interpolated_image, cv2.COLOR_RGB2HSV)
-        
-        # Extract the Saturation channel
-        saturation_channel = hsv_image[:, :, 1]  # Second channel
+                grid_layout.addWidget(label, i, j)
 
-        # Normalize to 0-255
-        saturation_normalized = cv2.normalize(saturation_channel, None, 0, 255, cv2.NORM_MINMAX)
+        layout.addLayout(grid_layout)  # Add to layout
 
-        # Apply colormap for better visualization
-        saturation_colormap = cv2.applyColorMap(saturation_normalized.astype(np.uint8), cv2.COLORMAP_JET)
-
-        # Display in saturationLayout
-        self.display_image(saturation_colormap, self.ui.saturationLayout)
-
-    def display_value_component(self):
-        """ Extracts and displays the Value component in the valueLayout """
-        
-        # Convert to HSV
-        hsv_image = cv2.cvtColor(self.Interpolated_image, cv2.COLOR_RGB2HSV)
-        
-        # Extract the Value channel
-        value_channel = hsv_image[:, :, 2]  # Third channel
-
-        # Normalize to 0-255
-        value_normalized = cv2.normalize(value_channel, None, 0, 255, cv2.NORM_MINMAX)
-
-        # Apply colormap for better visualization
-        value_colormap = cv2.applyColorMap(value_normalized.astype(np.uint8), cv2.COLORMAP_JET)
-
-        # Display in valueLayout
-        self.display_image(value_colormap, self.ui.valueLayout)
-
-
-
-    def display_hsv_img(self):
-        #To Do
-        True
 
     def display_image(self, image, layout):
         """ Helper function to display images in a given layout """
@@ -289,6 +277,8 @@ class ImageProcessor(QtWidgets.QMainWindow):
             layout.itemAt(i).widget().setParent(None)
 
         layout.addWidget(label)
+
+        
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
     window = ImageProcessor()
