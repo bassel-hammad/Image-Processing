@@ -111,85 +111,68 @@ class ImageProcessor(QtWidgets.QMainWindow):
 
         self.ui.BayerFilterImageLayout.addLayout(grid_layout)
 
-    def bilinear_interpolation(self, x_left, x_right, y_top, y_bottom, top_left, top_right, bottom_left, bottom_right, x_target, y_target):
-        """
-        Performs bilinear interpolation for a target point within a grid defined by four corner points.
+    def bilinear_interpolation(self, x_left, x_right, y_top, y_bottom,  top_left, top_right, bottom_left, bottom_right,x_target, y_target):
+            if x_left == x_right or y_top == y_bottom:  # Prevent division by zero
+                return (top_left + top_right + bottom_left + bottom_right) / 4
 
-        Parameters:
-        x_left, x_right: x-coordinates of the left and right grid lines
-        y_top, y_bottom: y-coordinates of the top and bottom grid lines
-        top_left, top_right: values at the top-left and top-right corners
-        bottom_left, bottom_right: values at the bottom-left and bottom-right corners
-        x_target, y_target: coordinates of the target point for interpolation
+            interp_top = ((x_right - x_target) / (x_right - x_left)) * top_left + ((x_target - x_left) / (x_right - x_left)) * top_right
+            interp_bottom = ((x_right - x_target) / (x_right - x_left)) * bottom_left + ((x_target - x_left) / (x_right - x_left)) * bottom_right
 
-        Returns:
-        Interpolated value at the target point.
-        """
-        if x_left == x_right or y_top == y_bottom:  # Prevent division by zero
-            return (top_left + top_right + bottom_left + bottom_right) / 4
-
-        # Interpolate along the top and bottom edges (along the x-axis)
-        interp_top = ((x_right - x_target) / (x_right - x_left)) * top_left + \
-                     ((x_target - x_left) / (x_right - x_left)) * top_right
-        
-        interp_bottom = ((x_right - x_target) / (x_right - x_left)) * bottom_left + \
-                        ((x_target - x_left) / (x_right - x_left)) * bottom_right
-
-        # Interpolate between the top and bottom interpolated values (along the x-axis)
-        interp_final = ((y_bottom - y_target) / (y_bottom - y_top)) * interp_top + ((y_target - y_top) / (y_bottom - y_top)) * interp_bottom
-
-        return interp_final
+            interp_final = ((y_bottom - y_target) / (y_bottom - y_top)) * interp_top + ((y_target - y_top) / (y_bottom - y_top)) * interp_bottom
+            return interp_final
     
     def generate_interpolated_image(self):
-        """ Generates a color interpolated image using bilinear interpolation and displays it. """
+        """Generates a color interpolated image using bilinear interpolation and displays it."""
         rows = self.ui.rowsSpinBox.value()
         cols = self.ui.columnSpinBox.value()
 
         # Convert the Bayer-filtered image to grayscale (max intensity across RGB channels)
         grayscale_image = self.bayer_filtered_image.max(axis=2).astype(np.float32)
-        self.Interpolated_image = np.zeros((rows, cols, 3), dtype=np.float32)
-        bayer_padded = cv2.copyMakeBorder(grayscale_image, 1, 1, 1, 1, cv2.BORDER_REFLECT)
-        for y in range(0, rows):
-            for x in range(0, cols):
-                y_p, x_p = y + 1, x + 1  # Offset due to padding
-                if (x % 2 == 1) and (y % 2 == 1):  # Blue pixel location
-                    B = bayer_padded[y_p, x_p]
-                    G = self.bilinear_interpolation(x_p-1, x_p+1, y_p-1, y_p+1,
-                                            bayer_padded[y_p-1, x_p],
-                                            bayer_padded[y_p+1, x_p],
-                                            bayer_padded[y_p, x_p-1],
-                                            bayer_padded[y_p, x_p+1],
-                                            x, y)
-                    R = self.bilinear_interpolation(x_p-1, x_p+1, y_p-1, y_p+1,
-                                            bayer_padded[y_p-1, x_p-1],
-                                            bayer_padded[y_p-1, x_p+1],
-                                            bayer_padded[y_p+1, x_p-1],
-                                            bayer_padded[y_p+1, x_p+1],
-                                            x, y)
-                elif (x % 2 == 0) and (y % 2 == 0):  # Red pixel location
-                    R = bayer_padded[y_p, x_p]
-                    G = self.bilinear_interpolation(x_p-1, x_p+1, y_p-1, y_p+1,
-                                            bayer_padded[y_p-1, x_p],
-                                            bayer_padded[y_p+1, x_p],
-                                            bayer_padded[y_p, x_p-1],
-                                            bayer_padded[y_p, x_p+1],
-                                            x_p, y_p)
-                    B = self.bilinear_interpolation(x_p-1, x_p+1, y_p-1, y_p+1,
-                                            bayer_padded[y_p-1, x_p-1],
-                                            bayer_padded[y_p-1, x_p+1],
-                                            bayer_padded[y_p+1, x_p-1],
-                                            bayer_padded[y_p+1, x_p+1],
-                                            x, y)
+        self.interpolated_image = np.zeros((rows, cols, 3), dtype=np.float32)
+        padded_grayscale_image = cv2.copyMakeBorder(grayscale_image, 1, 1, 1, 1, cv2.BORDER_REFLECT)
+
+        for row in range(rows):
+            for col in range(cols):
+                padded_row, padded_col = row + 1, col + 1  # Offset due to padding
+                if (col % 2 == 1) and (row % 2 == 1):  # Blue pixel location
+                    blue = padded_grayscale_image[padded_row, padded_col]
+                    green = self.bilinear_interpolation(padded_col-1, padded_col+1, padded_row-1, padded_row+1,
+                                                        padded_grayscale_image[padded_row-1, padded_col],
+                                                        padded_grayscale_image[padded_row+1, padded_col],
+                                                        padded_grayscale_image[padded_row, padded_col-1],
+                                                        padded_grayscale_image[padded_row, padded_col+1],
+                                                        col, row)
+                    red = self.bilinear_interpolation(padded_col-1, padded_col+1, padded_row-1, padded_row+1,
+                                                    padded_grayscale_image[padded_row-1, padded_col-1],
+                                                    padded_grayscale_image[padded_row-1, padded_col+1],
+                                                    padded_grayscale_image[padded_row+1, padded_col-1],
+                                                    padded_grayscale_image[padded_row+1, padded_col+1],
+                                                    col, row)
+                elif (col % 2 == 0) and (row % 2 == 0):  # Red pixel location
+                    red = padded_grayscale_image[padded_row, padded_col]
+                    green = self.bilinear_interpolation(padded_col-1, padded_col+1, padded_row-1, padded_row+1,
+                                                        padded_grayscale_image[padded_row-1, padded_col],
+                                                        padded_grayscale_image[padded_row+1, padded_col],
+                                                        padded_grayscale_image[padded_row, padded_col-1],
+                                                        padded_grayscale_image[padded_row, padded_col+1],
+                                                        padded_col, padded_row)
+                    blue = self.bilinear_interpolation(padded_col-1, padded_col+1, padded_row-1, padded_row+1,
+                                                    padded_grayscale_image[padded_row-1, padded_col-1],
+                                                    padded_grayscale_image[padded_row-1, padded_col+1],
+                                                    padded_grayscale_image[padded_row+1, padded_col-1],
+                                                    padded_grayscale_image[padded_row+1, padded_col+1],
+                                                    col, row)
                 else:  # Green pixel location
-                    G = bayer_padded[y_p, x_p]
-                    if y % 2 == 0:  # Green in red row
-                        R = (bayer_padded[y_p, x_p-1] + bayer_padded[y_p, x_p+1]) / 2
-                        B = (bayer_padded[y_p-1, x_p] + bayer_padded[y_p+1, x_p]) / 2
+                    green = padded_grayscale_image[padded_row, padded_col]
+                    if row % 2 == 0:  # Green in red row
+                        red = (padded_grayscale_image[padded_row, padded_col-1] + padded_grayscale_image[padded_row, padded_col+1]) / 2
+                        blue = (padded_grayscale_image[padded_row-1, padded_col] + padded_grayscale_image[padded_row+1, padded_col]) / 2
                     else:  # Green in blue row
-                        R = (bayer_padded[y_p-1, x_p] + bayer_padded[y_p+1, x_p]) / 2
-                        B = (bayer_padded[y_p, x_p-1] + bayer_padded[y_p, x_p+1]) / 2
-                self.Interpolated_image[y,x] = [R,G,B]
-    # Clear previous layout contents
+                        red = (padded_grayscale_image[padded_row-1, padded_col] + padded_grayscale_image[padded_row+1, padded_col]) / 2
+                        blue = (padded_grayscale_image[padded_row, padded_col-1] + padded_grayscale_image[padded_row, padded_col+1]) / 2
+                self.interpolated_image[row, col] = [red, green, blue]
+
+        # Clear previous layout contents
         while self.ui.interpolatedImageLayout_3.count():
             item = self.ui.interpolatedImageLayout_3.takeAt(0)
             if item.widget():
@@ -205,20 +188,21 @@ class ImageProcessor(QtWidgets.QMainWindow):
 
         # Calculate dynamic pixel size to fit the entire layout
         pixel_size = min(layout_width // cols, layout_height // rows)
+
         # Display each pixel as a QLabel with background-color
-        for i in range(rows):
-            for j in range(cols):
-                color = self.Interpolated_image[i, j]
+        for row in range(rows):
+            for col in range(cols):
+                color = self.interpolated_image[row, col]
 
                 # Convert numpy array values to integers
-                r, g, b = int(color[0]), int(color[1]), int(color[2])
+                red, green, blue = int(color[0]), int(color[1]), int(color[2])
 
                 label = QLabel()
-                label.setStyleSheet(f"background-color: rgb({r}, {g}, {b});")
+                label.setStyleSheet(f"background-color: rgb({red}, {green}, {blue});")
                 label.setMinimumSize(pixel_size, pixel_size)
                 label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
 
-                grid_layout.addWidget(label, i, j)
+                grid_layout.addWidget(label, row, col)
 
         self.ui.interpolatedImageLayout_3.addLayout(grid_layout)
 
