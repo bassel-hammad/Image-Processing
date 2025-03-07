@@ -15,8 +15,10 @@ class ImageProcessor(QtWidgets.QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
 
-        self.ui.rowsSpinBox.setMaximum(300)
-        self.ui.columnSpinBox.setMaximum(300)
+        self.ui.rowsSpinBox.setMaximum(20)
+        self.ui.columnSpinBox.setMaximum(20)
+        self.ui.rowsSpinBox.setValue(5)
+        self.ui.columnSpinBox.setValue(5)
 
         self.ui.generateImageButton.clicked.connect(self.generate_random_image)
         self.ui.ApplyButton.clicked.connect(self.apply_bayer_filter)
