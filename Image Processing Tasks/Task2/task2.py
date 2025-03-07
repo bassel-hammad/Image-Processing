@@ -111,15 +111,34 @@ class ImageProcessor(QtWidgets.QMainWindow):
 
         self.ui.BayerFilterImageLayout.addLayout(grid_layout)
 
-    def bilinear_interpolation(self, x_left, x_right, y_top, y_bottom,  top_left, top_right, bottom_left, bottom_right,x_target, y_target):
-            if x_left == x_right or y_top == y_bottom:  # Prevent division by zero
-                return (top_left + top_right + bottom_left + bottom_right) / 4
+    def bilinear_interpolation(self, x_left, x_right, y_top, y_bottom, top_left, top_right, bottom_left, bottom_right, x_target, y_target):
+        """
+        Performs bilinear interpolation for a target point within a grid defined by four corner points.
 
-            interp_top = ((x_right - x_target) / (x_right - x_left)) * top_left + ((x_target - x_left) / (x_right - x_left)) * top_right
-            interp_bottom = ((x_right - x_target) / (x_right - x_left)) * bottom_left + ((x_target - x_left) / (x_right - x_left)) * bottom_right
+        Parameters:
+        x_left, x_right: x-coordinates of the left and right grid lines
+        y_top, y_bottom: y-coordinates of the top and bottom grid lines
+        top_left, top_right: values at the top-left and top-right corners
+        bottom_left, bottom_right: values at the bottom-left and bottom-right corners
+        x_target, y_target: coordinates of the target point for interpolation
 
-            interp_final = ((y_bottom - y_target) / (y_bottom - y_top)) * interp_top + ((y_target - y_top) / (y_bottom - y_top)) * interp_bottom
-            return interp_final
+        Returns:
+        Interpolated value at the target point.
+        """
+        if x_left == x_right or y_top == y_bottom:  # Prevent division by zero
+            return (top_left + top_right + bottom_left + bottom_right) / 4
+
+        # Interpolate along the top and bottom edges (along the x-axis)
+        interp_top = ((x_right - x_target) / (x_right - x_left)) * top_left + \
+                     ((x_target - x_left) / (x_right - x_left)) * top_right
+        
+        interp_bottom = ((x_right - x_target) / (x_right - x_left)) * bottom_left + \
+                        ((x_target - x_left) / (x_right - x_left)) * bottom_right
+
+        # Interpolate between the top and bottom interpolated values (along the x-axis)
+        interp_final = ((y_bottom - y_target) / (y_bottom - y_top)) * interp_top + ((y_target - y_top) / (y_bottom - y_top)) * interp_bottom
+
+        return interp_final
     
     def generate_interpolated_image(self):
         """ Generates a color interpolated image using bilinear interpolation and displays it. """
